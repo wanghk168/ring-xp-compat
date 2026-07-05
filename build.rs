@@ -329,7 +329,7 @@ fn ring_build_rs_main(c_root_dir: &Path, core_name_and_version: &str) {
         force_warnings_into_errors,
     };
 
-    let asm_target = if is_little_endian {
+    let asm_target = if is_little_endian && !(target.arch == X86 && target.os == "windows") {
         ASM_TARGETS.iter().find(|asm_target| {
             asm_target.arch == target.arch && asm_target.oss.contains(&target.os.as_ref())
         })
