@@ -329,7 +329,7 @@ fn ring_build_rs_main(c_root_dir: &Path, core_name_and_version: &str) {
         force_warnings_into_errors,
     };
 
-    let asm_target = if is_little_endian && !(target.arch == X86 && target.os == "windows") {
+    let asm_target = if is_little_endian {
         ASM_TARGETS.iter().find(|asm_target| {
             asm_target.arch == target.arch && asm_target.oss.contains(&target.os.as_ref())
         })
@@ -463,7 +463,32 @@ fn build_c_code(
             }
             true
         })
+        // XP x86 compat: on 32-bit Windows, avoid all PerlAsm that uses SSE/SSE2
+        // (aesni, vpaes, ghash, chacha). Keep only the SSE-free x86-mont.pl.
+        .filter(|p| {
+            if target.arch == X86 && target.os == WINDOWS {
+                let s = p.to_str().unwrap();
+                !s.ends_with("aesni-x86.pl")
+                    && !s.ends_with("vpaes-x86.pl")
+                    && !s.ends_with("ghash-x86.pl")
+                    && !s.ends_with("chacha-x86.pl")
+            } else {
+                true
+            }
+        })
         .collect::<Vec<_>>();
+
+    // XP x86 compat: add the vpaes wrapper when we disabled the SSE-capable
+    // vpaes-x86.pl above. The Rust AES code still references vpaes_* symbols,
+    // but runtime CPU detection on pre-SSE2 Windows x86 returns no SIMD flags
+    // so only the wrapper/fallback paths are used.
+    let core_srcs = if target.arch == X86 && target.os == WINDOWS {
+        let mut core_srcs = core_srcs;
+        core_srcs.push(PathBuf::from("crypto/fipsmodule/aes/vpaes_nohw_wrapper.c"));
+        core_srcs
+    } else {
+        core_srcs
+    };
 
     let test_srcs = RING_TEST_SRCS.iter().map(PathBuf::from).collect::<Vec<_>>();
 

@@ -112,6 +112,15 @@ fn cpuid_to_caps_and_set_c_flags(cpuid: &[u32; 4]) -> u32 {
     // "AMD" citations are for "AMD64 Technology AMD64 Architecture
     // Programmer’s Manual, Volumes 1-5" Revision 4.08 April 2024.
 
+    // XP x86 compat: force all SIMD feature detection off on 32-bit Windows so
+    // we never call the SSE/SSE2/SSSE3 assembly paths that we excluded from
+    // the build. Fallback (C) implementations will be used instead.
+    #[cfg(all(target_arch = "x86", target_os = "windows"))]
+    {
+        let _ = cpuid;
+        return 0;
+    }
+
     // The `prefixed_extern!` uses below assume this
     #[cfg(target_arch = "x86_64")]
     use core::{mem::align_of, sync::atomic::AtomicU32};
